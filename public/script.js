@@ -4,6 +4,9 @@ const { useState, useEffect, useRef } = React;
 // Automatically detect the API base URL based on current location
 const API_BASE_URL = window.location.origin;
 
+// Authentication state
+let authToken = localStorage.getItem('access_token') || null;
+
 // DOM Elements (these will be initialized after DOM loads)
 let statusText, statusDot, loadingOverlay;
 
@@ -115,11 +118,24 @@ const makeRequest = async (endpoint, options = {}) => {
         },
     };
     
+    // Add authentication header if token exists
+    if (authToken && endpoint !== '/auth' && endpoint !== '/health') {
+        defaultOptions.headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    
     const requestOptions = { ...defaultOptions, ...options };
     
     try {
         console.log(`Making request to: ${url}`, requestOptions);
         const response = await fetch(url, requestOptions);
+        
+        if (response.status === 401 || response.status === 403) {
+            // Clear invalid token and force re-authentication
+            authToken = null;
+            localStorage.removeItem('access_token');
+            window.location.reload();
+            return;
+        }
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -476,6 +492,112 @@ window.loadExample = loadExample;
 
 console.log('✅ OpenAI API Client ready!');
 
+// Authentication Hook
+const useAuth = () => {
+    const [isAuthenticated, setIsAuthenticated] = useState(!!authToken);
+    const [loading, setLoading] = useState(false);
+
+    const login = async (accessKey) => {
+        try {
+            setLoading(true);
+            const response = await makeRequest('/auth', {
+                method: 'POST',
+                body: JSON.stringify({ access_key: accessKey })
+            });
+
+            if (response.authenticated) {
+                authToken = response.token;
+                localStorage.setItem('access_token', authToken);
+                setIsAuthenticated(true);
+                return { success: true, message: response.message };
+            } else {
+                return { success: false, message: 'Authentication failed' };
+            }
+        } catch (error) {
+            return { success: false, message: error.message };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const logout = () => {
+        authToken = null;
+        localStorage.removeItem('access_token');
+        setIsAuthenticated(false);
+    };
+
+    return { isAuthenticated, login, logout, loading };
+};
+
+// Login Component
+const LoginModal = ({ onLogin, loading }) => {
+    const [accessKey, setAccessKey] = useState('');
+    const [error, setError] = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!accessKey.trim()) {
+            setError('Please enter your access key');
+            return;
+        }
+
+        const result = await onLogin(accessKey);
+        if (!result.success) {
+            setError(result.message);
+        }
+    };
+
+    return (
+        <div className="loading-overlay show">
+            <div className="loading-spinner" style={{ maxWidth: '400px', width: '90%' }}>
+                <i className="fas fa-lock" style={{ fontSize: '3rem', marginBottom: '20px', color: 'var(--accent-color)' }}></i>
+                <h2 style={{ marginBottom: '20px', color: 'var(--text-primary)' }}>Access Required</h2>
+                <p style={{ marginBottom: '30px', color: 'var(--text-secondary)' }}>
+                    Please enter your access key to use this service
+                </p>
+                <form onSubmit={handleSubmit} style={{ width: '100%' }}>
+                    <div className="input-group" style={{ marginBottom: '20px' }}>
+                        <input
+                            type="password"
+                            className="form-input"
+                            placeholder="Enter access key..."
+                            value={accessKey}
+                            onChange={(e) => setAccessKey(e.target.value)}
+                            disabled={loading}
+                            style={{ textAlign: 'center' }}
+                        />
+                    </div>
+                    {error && (
+                        <div style={{ 
+                            color: 'var(--error-color)', 
+                            marginBottom: '20px', 
+                            fontSize: '0.9rem' 
+                        }}>
+                            {error}
+                        </div>
+                    )}
+                    <button 
+                        type="submit" 
+                        className="btn btn-primary" 
+                        disabled={loading}
+                        style={{ width: '100%' }}
+                    >
+                        {loading ? (
+                            <>
+                                <i className="fas fa-spinner fa-spin"></i> Authenticating...
+                            </>
+                        ) : (
+                            <>
+                                <i className="fas fa-sign-in-alt"></i> Access Service
+                            </>
+                        )}
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 // Utility Components
 const LoadingOverlay = ({ show }) => {
     if (!show) return null;
@@ -501,22 +623,38 @@ const Result = ({ content, type = 'info', className = '' }) => {
 };
 
 // Header Component
-const Header = ({ status, theme, toggleTheme }) => {
+const Header = ({ status, theme, toggleTheme, onLogout }) => {
     return (
         <header className="header">
             <h1>
                 <i className="fas fa-robot"></i> 
                 OpenAI API Client
             </h1>
-            <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <div className="status-indicator">
                     <span>{status.message}</span>
                     <div className={`status-dot ${status.type}`}></div>
                 </div>
-                <button className="theme-toggle" onClick={toggleTheme}>
-                    <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
-                    {theme === 'light' ? 'Dark' : 'Light'}
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button className="theme-toggle" onClick={toggleTheme}>
+                        <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
+                        {theme === 'light' ? 'Dark' : 'Light'}
+                    </button>
+                    <button 
+                        className="btn btn-secondary" 
+                        onClick={onLogout}
+                        style={{ 
+                            padding: '8px 16px', 
+                            fontSize: '0.9rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                        }}
+                    >
+                        <i className="fas fa-sign-out-alt"></i>
+                        Logout
+                    </button>
+                </div>
             </div>
         </header>
     );
@@ -1026,16 +1164,22 @@ const App = () => {
     const [theme, toggleTheme] = useTheme();
     const [status, setStatus] = useState({ type: '', message: 'Checking...' });
     const [globalLoading, setGlobalLoading] = useState(false);
+    const { isAuthenticated, login, logout, loading: authLoading } = useAuth();
 
     useEffect(() => {
         console.log('🚀 OpenAI API Client with React 18 initialized');
         console.log('🌐 API Base URL:', API_BASE_URL);
         console.log('🎨 Current Theme:', theme);
-    }, [theme]);
+        console.log('🔐 Authenticated:', isAuthenticated);
+    }, [theme, isAuthenticated]);
+
+    if (!isAuthenticated) {
+        return <LoginModal onLogin={login} loading={authLoading} />;
+    }
 
     return (
         <div className="container">
-            <Header status={status} theme={theme} toggleTheme={toggleTheme} />
+            <Header status={status} theme={theme} toggleTheme={toggleTheme} onLogout={logout} />
             
             <main className="main-content">
                 <HealthSection onStatusChange={setStatus} />

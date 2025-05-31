@@ -1,10 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-from typing import List, Optional
+from typing import List, Optional, Annotated
 import openai
 import os
 import uuid
@@ -33,6 +34,14 @@ app.mount("/static", StaticFiles(directory="public"), name="static")
 # Get API key from environment variables
 api_key = os.getenv('OPENAI_API_KEY')
 
+# Get authentication key from environment variables
+auth_key = os.getenv('ACCESS_KEY')
+
+if not auth_key:
+    print("⚠️  WARNING: ACCESS_KEY is not configured.")
+    print("   Set ACCESS_KEY environment variable in Railway")
+    print("   Users will not be able to authenticate.")
+
 if not api_key:
     print("⚠️  WARNING: OpenAI API key is not configured.")
     print("   Create a .env file with: OPENAI_API_KEY=your_api_key_here")
@@ -47,7 +56,18 @@ else:
         print(f"❌ Error initializing OpenAI client: {e}")
         client = None
 
+# Security scheme
+security = HTTPBearer(auto_error=False)
+
 # Request/Response Models
+class AuthRequest(BaseModel):
+    access_key: str = Field(..., description="Access key for authentication")
+
+class AuthResponse(BaseModel):
+    authenticated: bool = Field(..., description="Authentication status")
+    message: str = Field(..., description="Authentication message")
+    token: Optional[str] = Field(None, description="Authentication token")
+
 class ChatMessage(BaseModel):
     role: str = Field(..., description="Role of the message sender")
     content: str = Field(..., description="Content of the message")
@@ -74,6 +94,28 @@ class EmbeddingRequest(BaseModel):
     model: str = Field(default="text-embedding-ada-002", description="Model to use for embeddings")
     input: str = Field(..., description="Text to create embeddings for")
 
+# Helper function to check authentication
+def verify_access_key(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    if not auth_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication not configured. Please set ACCESS_KEY."
+        )
+    
+    if not credentials:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Please provide access key."
+        )
+    
+    if credentials.credentials != auth_key:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid access key."
+        )
+    
+    return credentials.credentials
+
 # Helper function to check if OpenAI client is available
 def check_openai_client():
     if client is None:
@@ -89,20 +131,43 @@ async def root():
     """Serve the web client interface"""
     return FileResponse('public/index.html')
 
+@app.post("/auth")
+async def authenticate(request: AuthRequest):
+    """Authenticate user with access key"""
+    if not auth_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication not configured. Please set ACCESS_KEY."
+        )
+    
+    if request.access_key == auth_key:
+        return AuthResponse(
+            authenticated=True,
+            message="Authentication successful",
+            token=request.access_key  # In a real app, you'd generate a JWT token
+        )
+    else:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid access key"
+        )
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     openai_status = "available" if client is not None else "unavailable"
+    auth_status = "configured" if auth_key else "not configured"
     
     return {
         "status": "healthy",
         "message": f"Service is operational. OpenAI client: {openai_status}",
         "openai_client": openai_status,
+        "authentication": auth_status,
         "service_version": "1.0.0"
     }
 
 @app.post("/chat")
-async def chat_completion(request: ChatRequest):
+async def chat_completion(request: ChatRequest, token: str = Depends(verify_access_key)):
     """Generate chat completion using OpenAI"""
     check_openai_client()
     
@@ -124,7 +189,7 @@ async def chat_completion(request: ChatRequest):
         raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
 @app.post("/completion")
-async def text_completion(request: CompletionRequest):
+async def text_completion(request: CompletionRequest, token: str = Depends(verify_access_key)):
     """Generate text completion using OpenAI"""
     check_openai_client()
     
@@ -146,7 +211,7 @@ async def text_completion(request: CompletionRequest):
         raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
 @app.post("/images/generate")
-async def generate_image(request: ImageRequest):
+async def generate_image(request: ImageRequest, token: str = Depends(verify_access_key)):
     """Generate image using DALL-E"""
     check_openai_client()
     
@@ -170,7 +235,7 @@ async def generate_image(request: ImageRequest):
         raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
 @app.post("/embeddings")
-async def create_embeddings(request: EmbeddingRequest):
+async def create_embeddings(request: EmbeddingRequest, token: str = Depends(verify_access_key)):
     """Create embeddings using OpenAI"""
     check_openai_client()
     
@@ -189,7 +254,7 @@ async def create_embeddings(request: EmbeddingRequest):
         raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
 @app.get("/models")
-async def list_models():
+async def list_models(token: str = Depends(verify_access_key)):
     """List available OpenAI models"""
     check_openai_client()
     
