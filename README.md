@@ -11,9 +11,46 @@ Un servicio FastAPI completo para integrar las capacidades de OpenAI en tus apli
 - **📋 Listado de Modelos** - Obtener modelos disponibles
 - **🏥 Health Checks** - Monitoreo del estado del servicio
 - **📚 Documentación Automática** - Swagger UI integrado
-- **🌐 Cliente Web** - Interfaz moderna y responsive
+- **🌐 Cliente Web** - Interfaz moderna React con temas
 - **🐍 Cliente Python** - Librería fácil de usar
+- **🔐 Autenticación** - Sistema seguro con claves de acceso
+- **🏗️ Arquitectura Modular** - Backend escalable y mantenible
 - **🔧 CORS Habilitado** - Listo para aplicaciones web
+
+## 🏗️ Arquitectura
+
+El proyecto utiliza una arquitectura modular y escalable:
+
+```
+backend/
+├── main.py              # Aplicación FastAPI principal
+├── config/              # Gestión de configuración
+│   └── settings.py      # Variables de entorno y validación
+├── models/              # Modelos Pydantic
+│   ├── auth.py          # Modelos de autenticación
+│   ├── openai_models.py # Modelos de OpenAI
+│   └── responses.py     # Respuestas comunes
+├── services/            # Lógica de negocio
+│   ├── auth_service.py  # Servicio de autenticación
+│   └── openai_service.py # Integración con OpenAI
+├── routes/              # Endpoints de la API
+│   ├── auth.py          # Rutas de autenticación
+│   ├── health.py        # Health checks
+│   └── openai.py        # Endpoints de OpenAI
+├── middleware/          # Middleware personalizado
+│   └── auth_middleware.py # Autenticación JWT
+└── utils/               # Funciones auxiliares
+    └── helpers.py       # Utilidades comunes
+```
+
+### Beneficios de la Arquitectura
+
+- **🔧 Mantenibilidad**: Separación clara de responsabilidades
+- **📈 Escalabilidad**: Fácil agregar nuevos servicios de IA
+- **🧪 Testeable**: Componentes aislados para pruebas
+- **🔄 Reutilizable**: Servicios compartibles entre endpoints
+
+Ver [ARCHITECTURE.md](ARCHITECTURE.md) para documentación detallada.
 
 ## 🚀 Inicio Rápido
 
@@ -43,7 +80,7 @@ Un servicio FastAPI completo para integrar las capacidades de OpenAI en tus apli
 
 4. **Inicia el servidor**
    ```bash
-   python server.py
+   python main.py
    ```
 
 5. **¡Listo! 🎉**
@@ -364,4 +401,22 @@ Tu servicio OpenAI está ahora completamente configurado con:
 - ✅ **Scripts de testing** incluidos
 - ✅ **Interfaz intuitiva** para todos los endpoints
 
-**¡Disfruta explorando las capacidades de OpenAI! 🚀** 
+## 📋 Testing
+
+### Probar Backend Modular
+
+```bash
+# Prueba todos los endpoints de la nueva arquitectura
+python test_modular_backend.py
+
+# Pruebas del cliente web original
+python test_web_client.py
+```
+
+## 📖 Documentación Adicional
+
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Documentación detallada de la arquitectura modular
+- **[MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)** - Guía de migración de monolítico a modular
+- **[AUTHENTICATION_SETUP.md](AUTHENTICATION_SETUP.md)** - Configuración de autenticación Railway
+
+**¡Disfruta explorando las capacidades de OpenAI con la nueva arquitectura modular! 🚀** 
