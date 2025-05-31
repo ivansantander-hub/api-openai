@@ -422,6 +422,7 @@ python test_web_client.py
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Documentación detallada de la arquitectura modular
 - **[MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)** - Guía de migración de monolítico a modular
 - **[AUTHENTICATION_SETUP.md](docs/AUTHENTICATION_SETUP.md)** - Configuración de autenticación Railway
+- **[RAILWAY_ERROR_307_FIX.md](docs/RAILWAY_ERROR_307_FIX.md)** - Solución para error 307 en Railway
 - **[SETUP.md](docs/SETUP.md)** - Guía de configuración detallada
 
 **¡Disfruta explorando las capacidades de OpenAI con la nueva arquitectura modular! 🚀** 

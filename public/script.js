@@ -111,11 +111,22 @@ function formatSuccess(message) {
 
 // API Functions
 const makeRequest = async (endpoint, options = {}) => {
-    const url = `${API_BASE_URL}${endpoint}`;
+    // Normalizar endpoint para evitar problemas con trailing slash
+    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${API_BASE_URL}${normalizedEndpoint}`;
+    
     const defaultOptions = {
         headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            // Headers específicos para Railway
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
         },
+        // Configuraciones para evitar redirects
+        redirect: 'follow',
+        mode: 'cors',
+        credentials: 'same-origin',
     };
     
     // Add authentication header if token exists
@@ -129,6 +140,28 @@ const makeRequest = async (endpoint, options = {}) => {
         console.log(`Making request to: ${url}`, requestOptions);
         const response = await fetch(url, requestOptions);
         
+        // Log para debugging en Railway
+        console.log(`Response status: ${response.status}`, response.headers);
+        
+        // Manejar redirects específicamente
+        if (response.status === 307 || response.status === 308) {
+            console.warn('⚠️ Redirect detected, trying alternative approach...');
+            
+            // Retry sin trailing slash si hay uno
+            const alternativeEndpoint = normalizedEndpoint.endsWith('/') 
+                ? normalizedEndpoint.slice(0, -1) 
+                : normalizedEndpoint + '/';
+            
+            const alternativeUrl = `${API_BASE_URL}${alternativeEndpoint}`;
+            console.log(`Retrying with: ${alternativeUrl}`);
+            
+            const retryResponse = await fetch(alternativeUrl, requestOptions);
+            if (retryResponse.ok) {
+                const data = await retryResponse.json();
+                return data;
+            }
+        }
+        
         if (response.status === 401 || response.status === 403) {
             // Clear invalid token and force re-authentication
             authToken = null;
@@ -138,13 +171,23 @@ const makeRequest = async (endpoint, options = {}) => {
         }
         
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
         
         const data = await response.json();
         return data;
     } catch (error) {
         console.error('Request failed:', error);
+        
+        // Log adicional para debugging
+        console.error('Error details:', {
+            endpoint,
+            url,
+            options: requestOptions,
+            error: error.message
+        });
+        
         throw error;
     }
 };
@@ -500,21 +543,45 @@ const useAuth = () => {
     const login = async (accessKey) => {
         try {
             setLoading(true);
-            const response = await makeRequest('/auth', {
-                method: 'POST',
-                body: JSON.stringify({ access_key: accessKey })
-            });
+            console.log('🔐 Attempting authentication...');
+            
+            // Intentar múltiples variantes del endpoint para Railway
+            const authEndpoints = ['/auth', '/auth/'];
+            let lastError = null;
+            
+            for (const endpoint of authEndpoints) {
+                try {
+                    console.log(`Trying auth endpoint: ${endpoint}`);
+                    const response = await makeRequest(endpoint, {
+                        method: 'POST',
+                        body: JSON.stringify({ access_key: accessKey })
+                    });
 
-            if (response.authenticated) {
-                authToken = response.token;
-                localStorage.setItem('access_token', authToken);
-                setIsAuthenticated(true);
-                return { success: true, message: response.message };
-            } else {
-                return { success: false, message: 'Authentication failed' };
+                    if (response && response.authenticated) {
+                        console.log('✅ Authentication successful');
+                        authToken = response.token;
+                        localStorage.setItem('access_token', authToken);
+                        setIsAuthenticated(true);
+                        return { success: true, message: response.message };
+                    } else {
+                        return { success: false, message: 'Authentication failed' };
+                    }
+                } catch (error) {
+                    console.warn(`Auth endpoint ${endpoint} failed:`, error.message);
+                    lastError = error;
+                    continue; // Try next endpoint
+                }
             }
+            
+            // Si llegamos aquí, todos los endpoints fallaron
+            throw lastError || new Error('All authentication endpoints failed');
+            
         } catch (error) {
-            return { success: false, message: error.message };
+            console.error('❌ Authentication error:', error);
+            return { 
+                success: false, 
+                message: `Authentication failed: ${error.message}` 
+            };
         } finally {
             setLoading(false);
         }

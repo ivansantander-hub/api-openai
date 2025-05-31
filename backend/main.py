@@ -4,6 +4,7 @@ Main FastAPI application with modular architecture.
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import uvicorn
@@ -25,16 +26,28 @@ def create_app() -> FastAPI:
         description=settings.APP_DESCRIPTION,
         version=settings.APP_VERSION,
         docs_url="/docs",
-        redoc_url="/redoc"
+        redoc_url="/redoc",
+        # Configuraciones específicas para Railway
+        redirect_slashes=False,  # Evita redirects automáticos
+        root_path="",  # Path root explícito
     )
     
-    # Configure CORS
+    # Middleware para Railway - Trusted Host
+    app.add_middleware(
+        TrustedHostMiddleware, 
+        allowed_hosts=["*"]  # Railway maneja esto automáticamente
+    )
+    
+    # Configure CORS con configuraciones específicas para Railway
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=settings.CORS_CREDENTIALS,
         allow_methods=settings.CORS_METHODS,
         allow_headers=settings.CORS_HEADERS,
+        # Headers adicionales para Railway
+        expose_headers=["*"],
+        max_age=3600,
     )
     
     # Include routers
@@ -64,10 +77,20 @@ def create_app() -> FastAPI:
                 detail="Frontend not found. Please ensure index.html exists in the public directory."
             )
     
+    # Middleware para debugging en Railway
+    @app.middleware("http")
+    async def log_requests(request, call_next):
+        print(f"🔄 Request: {request.method} {request.url}")
+        print(f"📡 Headers: {dict(request.headers)}")
+        response = await call_next(request)
+        print(f"✅ Response: {response.status_code}")
+        return response
+    
     # Global exception handler
     @app.exception_handler(Exception)
     async def global_exception_handler(request, exc):
         """Handle uncaught exceptions globally."""
+        print(f"❌ Unhandled exception: {exc}")
         error_response = format_error_response(exc)
         return HTTPException(
             status_code=500,
@@ -77,33 +100,16 @@ def create_app() -> FastAPI:
     return app
 
 
-# Create app instance
+# Crear la instancia de la aplicación
 app = create_app()
 
-
-# Startup and shutdown events
+# Startup event para Railway
 @app.on_event("startup")
 async def startup_event():
-    """Application startup tasks."""
-    print(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    
-    # Validate configuration
-    config_status = settings.validate_configuration()
-    
-    if config_status["warnings"]:
-        print("⚠️  Configuration warnings:")
-        for warning in config_status["warnings"]:
-            print(f"   - {warning}")
-    else:
-        print("✅ All configurations are valid")
-    
-    print(f"🌐 Server will run on {settings.HOST}:{settings.PORT}")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Application shutdown tasks."""
-    print("🛑 Shutting down OpenAI API Service")
+    print(f"🚀 {settings.APP_NAME} starting...")
+    print(f"🔧 Environment: {'Railway' if settings.PORT != 8000 else 'Local'}")
+    print(f"🔐 Auth configured: {settings.is_auth_configured}")
+    print(f"🤖 OpenAI configured: {settings.is_openai_configured}")
 
 
 if __name__ == "__main__":
@@ -111,5 +117,6 @@ if __name__ == "__main__":
         "backend.main:app",
         host=settings.HOST,
         port=settings.PORT,
-        reload=True
+        reload=False,  # Disable reload en producción
+        log_level="info"
     ) 
