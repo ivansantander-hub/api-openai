@@ -50,7 +50,7 @@ backend/
 - **🧪 Testeable**: Componentes aislados para pruebas
 - **🔄 Reutilizable**: Servicios compartibles entre endpoints
 
-Ver [ARCHITECTURE.md](ARCHITECTURE.md) para documentación detallada.
+Ver [ARCHITECTURE.md](docs/ARCHITECTURE.md) para documentación detallada.
 
 ## 🚀 Inicio Rápido
 
@@ -294,7 +294,11 @@ openai/v1/
 ├── test_web_client.py  # Script de pruebas
 ├── requirements.txt    # Dependencias
 ├── README.md          # Esta documentación
-├── SETUP.md           # Guía de configuración
+├── docs/              # Documentación adicional
+│   ├── SETUP.md       # Guía de configuración
+│   ├── ARCHITECTURE.md # Arquitectura detallada
+│   ├── MIGRATION_GUIDE.md # Guía de migración
+│   └── AUTHENTICATION_SETUP.md # Configuración auth
 └── public/            # Cliente web
     ├── index.html     # Interfaz principal
     ├── style.css      # Estilos modernos
@@ -415,8 +419,9 @@ python test_web_client.py
 
 ## 📖 Documentación Adicional
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Documentación detallada de la arquitectura modular
-- **[MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)** - Guía de migración de monolítico a modular
-- **[AUTHENTICATION_SETUP.md](AUTHENTICATION_SETUP.md)** - Configuración de autenticación Railway
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Documentación detallada de la arquitectura modular
+- **[MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)** - Guía de migración de monolítico a modular
+- **[AUTHENTICATION_SETUP.md](docs/AUTHENTICATION_SETUP.md)** - Configuración de autenticación Railway
+- **[SETUP.md](docs/SETUP.md)** - Guía de configuración detallada
 
 **¡Disfruta explorando las capacidades de OpenAI con la nueva arquitectura modular! 🚀** 
