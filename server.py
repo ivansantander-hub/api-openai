@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from typing import List, Optional
@@ -25,109 +27,83 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files (web client)
+app.mount("/static", StaticFiles(directory="public"), name="static")
+
 # Get API key from environment variables
 api_key = os.getenv('OPENAI_API_KEY')
 
 if not api_key:
     print("⚠️  WARNING: OpenAI API key is not configured.")
-    print("   Create a .env file with: OPENAI_API_KEY=your_key_here")
-    print("   The server will start but OpenAI endpoints will return errors.")
+    print("   Create a .env file with: OPENAI_API_KEY=your_api_key_here")
+    print("   The server will start but OpenAI endpoints will return 503 errors.")
     client = None
 else:
-    # Initialize OpenAI client with new simple initialization
     try:
+        # Initialize OpenAI client with proper error handling
         client = openai.OpenAI(api_key=api_key)
         print("✅ OpenAI client initialized successfully")
     except Exception as e:
-        print(f"❌ Warning: Could not initialize OpenAI client: {e}")
-        print("   The server will start but OpenAI endpoints will not work.")
+        print(f"❌ Error initializing OpenAI client: {e}")
         client = None
 
-# Pydantic models
-class Message(BaseModel):
-    role: str = Field(..., description="Role of the message (user, assistant, system)")
+# Request/Response Models
+class ChatMessage(BaseModel):
+    role: str = Field(..., description="Role of the message sender")
     content: str = Field(..., description="Content of the message")
 
 class ChatRequest(BaseModel):
-    messages: List[Message] = Field(..., description="List of messages for the conversation")
-    model: str = Field(default="gpt-3.5-turbo", description="OpenAI model to use")
-    temperature: float = Field(default=0.7, ge=0, le=2, description="Temperature for response generation")
-    max_tokens: Optional[int] = Field(default=None, description="Maximum tokens in response")
+    model: str = Field(default="gpt-3.5-turbo", description="Model to use for chat completion")
+    messages: List[ChatMessage] = Field(..., description="List of messages in the conversation")
+    temperature: Optional[float] = Field(default=0.7, ge=0, le=2, description="Sampling temperature")
+    max_tokens: Optional[int] = Field(default=1000, gt=0, description="Maximum number of tokens to generate")
 
 class CompletionRequest(BaseModel):
-    prompt: str = Field(..., description="Text prompt for completion")
-    model: str = Field(default="gpt-3.5-turbo-instruct", description="OpenAI model to use")
-    temperature: float = Field(default=0.7, ge=0, le=2, description="Temperature for response generation")
-    max_tokens: Optional[int] = Field(default=100, description="Maximum tokens in response")
+    model: str = Field(default="gpt-3.5-turbo-instruct", description="Model to use for completion")
+    prompt: str = Field(..., description="The prompt to complete")
+    temperature: Optional[float] = Field(default=0.7, ge=0, le=2, description="Sampling temperature")
+    max_tokens: Optional[int] = Field(default=100, gt=0, description="Maximum number of tokens to generate")
 
 class ImageRequest(BaseModel):
-    prompt: str = Field(..., description="Description of the image to generate")
-    size: str = Field(default="1024x1024", description="Size of the generated image")
-    quality: str = Field(default="standard", description="Quality of the generated image")
-    n: int = Field(default=1, ge=1, le=10, description="Number of images to generate")
+    prompt: str = Field(..., description="Text description of the desired image")
+    size: Optional[str] = Field(default="1024x1024", description="Size of the generated image")
+    quality: Optional[str] = Field(default="standard", description="Quality of the generated image")
+    n: Optional[int] = Field(default=1, ge=1, le=4, description="Number of images to generate")
 
 class EmbeddingRequest(BaseModel):
-    text: str = Field(..., description="Text to generate embeddings for")
-    model: str = Field(default="text-embedding-ada-002", description="Embedding model to use")
-
-class TranscriptionRequest(BaseModel):
-    language: Optional[str] = Field(default=None, description="Language of the audio")
-    response_format: str = Field(default="json", description="Response format")
-
-# Response models
-class ChatResponse(BaseModel):
-    id: str
-    message: str
-    model: str
-    usage: dict
-
-class CompletionResponse(BaseModel):
-    id: str
-    text: str
-    model: str
-    usage: dict
-
-class ImageResponse(BaseModel):
-    id: str
-    urls: List[str]
-    revised_prompts: Optional[List[str]] = None
-
-class EmbeddingResponse(BaseModel):
-    id: str
-    embeddings: List[List[float]]
-    model: str
-    usage: dict
-
-class HealthResponse(BaseModel):
-    status: str
-    message: str
+    model: str = Field(default="text-embedding-ada-002", description="Model to use for embeddings")
+    input: str = Field(..., description="Text to create embeddings for")
 
 # Helper function to check if OpenAI client is available
 def check_openai_client():
     if client is None:
         raise HTTPException(
-            status_code=503, 
-            detail="OpenAI client is not initialized. Please check your API key configuration."
+            status_code=503,
+            detail="OpenAI client not available. Please configure OPENAI_API_KEY."
         )
 
-# Endpoints
-@app.get("/", response_model=HealthResponse)
-async def root():
-    """Root endpoint to check if the API is running"""
-    return HealthResponse(status="ok", message="OpenAI API Service is running")
+# Routes
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/")
+async def root():
+    """Serve the web client interface"""
+    return FileResponse('public/index.html')
+
+@app.get("/health")
 async def health_check():
     """Health check endpoint"""
     openai_status = "available" if client is not None else "unavailable"
-    return HealthResponse(
-        status="healthy", 
-        message=f"Service is operational. OpenAI client: {openai_status}"
-    )
+    
+    return {
+        "status": "healthy",
+        "message": f"Service is operational. OpenAI client: {openai_status}",
+        "openai_client": openai_status,
+        "service_version": "1.0.0"
+    }
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat")
 async def chat_completion(request: ChatRequest):
-    """Generate chat completions using OpenAI's chat models"""
+    """Generate chat completion using OpenAI"""
     check_openai_client()
     
     try:
@@ -138,18 +114,18 @@ async def chat_completion(request: ChatRequest):
             max_tokens=request.max_tokens
         )
         
-        return ChatResponse(
-            id=str(uuid.uuid4()),
-            message=response.choices[0].message.content,
-            model=response.model,
-            usage=response.usage.model_dump()
-        )
+        return {
+            "message": response.choices[0].message.content,
+            "model": request.model,
+            "usage": response.usage.model_dump() if response.usage else None,
+            "id": response.id
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating chat completion: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
-@app.post("/completion", response_model=CompletionResponse)
+@app.post("/completion")
 async def text_completion(request: CompletionRequest):
-    """Generate text completions using OpenAI's completion models"""
+    """Generate text completion using OpenAI"""
     check_openai_client()
     
     try:
@@ -160,18 +136,18 @@ async def text_completion(request: CompletionRequest):
             max_tokens=request.max_tokens
         )
         
-        return CompletionResponse(
-            id=str(uuid.uuid4()),
-            text=response.choices[0].text,
-            model=response.model,
-            usage=response.usage.model_dump()
-        )
+        return {
+            "text": response.choices[0].text,
+            "model": request.model,
+            "usage": response.usage.model_dump() if response.usage else None,
+            "id": response.id
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating completion: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
-@app.post("/images/generate", response_model=ImageResponse)
+@app.post("/images/generate")
 async def generate_image(request: ImageRequest):
-    """Generate images using DALL-E"""
+    """Generate image using DALL-E"""
     check_openai_client()
     
     try:
@@ -183,36 +159,34 @@ async def generate_image(request: ImageRequest):
             n=request.n
         )
         
-        urls = [img.url for img in response.data]
-        revised_prompts = [img.revised_prompt for img in response.data if hasattr(img, 'revised_prompt')]
-        
-        return ImageResponse(
-            id=str(uuid.uuid4()),
-            urls=urls,
-            revised_prompts=revised_prompts if revised_prompts else None
-        )
+        return {
+            "url": response.data[0].url,
+            "prompt": request.prompt,
+            "size": request.size,
+            "quality": request.quality,
+            "revised_prompt": response.data[0].revised_prompt if hasattr(response.data[0], 'revised_prompt') else None
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating image: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
-@app.post("/embeddings", response_model=EmbeddingResponse)
-async def create_embedding(request: EmbeddingRequest):
-    """Generate embeddings for text"""
+@app.post("/embeddings")
+async def create_embeddings(request: EmbeddingRequest):
+    """Create embeddings using OpenAI"""
     check_openai_client()
     
     try:
         response = client.embeddings.create(
             model=request.model,
-            input=request.text
+            input=request.input
         )
         
-        return EmbeddingResponse(
-            id=str(uuid.uuid4()),
-            embeddings=[data.embedding for data in response.data],
-            model=response.model,
-            usage=response.usage.model_dump()
-        )
+        return {
+            "embeddings": [data.embedding for data in response.data],
+            "model": request.model,
+            "usage": response.usage.model_dump() if response.usage else None
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error creating embedding: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
 @app.get("/models")
 async def list_models():
@@ -221,14 +195,19 @@ async def list_models():
     
     try:
         response = client.models.list()
-        return {"models": [model.id for model in response.data]}
+        models = [model.model_dump() for model in response.data]
+        
+        return {
+            "models": models,
+            "count": len(models)
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching models: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import uvicorn
-    print("\n🚀 Starting OpenAI API Service...")
-    print("📖 Documentation: http://localhost:8000/docs")
-    print("❤️  Health Check: http://localhost:8000/health")
-    print("🔑 Make sure to set OPENAI_API_KEY in .env file")
-    uvicorn.run(app, host='0.0.0.0', port=8000)
+    print("🚀 Starting OpenAI API Service...")
+    print("📡 Server will be available at: http://localhost:8000")
+    print("🌐 Web Client will be available at: http://localhost:8000")
+    print("📚 API Documentation at: http://localhost:8000/docs")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

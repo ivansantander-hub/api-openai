@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 OpenAI API Client</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1><i class="fas fa-robot"></i> OpenAI API Client</h1>
+            <div class="status-indicator">
+                <span id="status-text">Checking...</span>
+                <div class="status-dot" id="status-dot"></div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Service Status -->
+            <section class="status-section">
+                <h2><i class="fas fa-heartbeat"></i> Service Status</h2>
+                <div class="status-card">
+                    <button class="btn btn-primary" onclick="checkHealth()">
+                        <i class="fas fa-sync-alt"></i> Check Health
+                    </button>
+                    <div class="status-result" id="health-result"></div>
+                </div>
+            </section>
+
+            <!-- Available Models -->
+            <section class="models-section">
+                <h2><i class="fas fa-list"></i> Available Models</h2>
+                <div class="models-card">
+                    <button class="btn btn-secondary" onclick="getModels()">
+                        <i class="fas fa-download"></i> Load Models
+                    </button>
+                    <div class="models-result" id="models-result"></div>
+                </div>
+            </section>
+
+            <!-- Chat Completion -->
+            <section class="chat-section">
+                <h2><i class="fas fa-comments"></i> Chat Completion</h2>
+                <div class="chat-card">
+                    <div class="input-group">
+                        <label for="chat-model">Model:</label>
+                        <select id="chat-model" class="form-select">
+                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            <option value="gpt-4">GPT-4</option>
+                            <option value="gpt-4-turbo-preview">GPT-4 Turbo</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="chat-message">Message:</label>
+                        <textarea id="chat-message" class="form-textarea" rows="4" 
+                                  placeholder="Type your message here..."></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label for="chat-temperature">Temperature:</label>
+                        <input type="range" id="chat-temperature" class="form-range" 
+                               min="0" max="2" step="0.1" value="0.7">
+                        <span id="chat-temp-value">0.7</span>
+                    </div>
+                    <button class="btn btn-primary" onclick="sendChatMessage()">
+                        <i class="fas fa-paper-plane"></i> Send Message
+                    </button>
+                    <div class="chat-result" id="chat-result"></div>
+                </div>
+            </section>
+
+            <!-- Text Completion -->
+            <section class="completion-section">
+                <h2><i class="fas fa-edit"></i> Text Completion</h2>
+                <div class="completion-card">
+                    <div class="input-group">
+                        <label for="completion-model">Model:</label>
+                        <select id="completion-model" class="form-select">
+                            <option value="gpt-3.5-turbo-instruct">GPT-3.5 Turbo Instruct</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="completion-prompt">Prompt:</label>
+                        <textarea id="completion-prompt" class="form-textarea" rows="4" 
+                                  placeholder="Enter your prompt here..."></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label for="completion-temperature">Temperature:</label>
+                        <input type="range" id="completion-temperature" class="form-range" 
+                               min="0" max="2" step="0.1" value="0.7">
+                        <span id="completion-temp-value">0.7</span>
+                    </div>
+                    <div class="input-group">
+                        <label for="completion-max-tokens">Max Tokens:</label>
+                        <input type="number" id="completion-max-tokens" class="form-input" 
+                               value="100" min="1" max="4000">
+                    </div>
+                    <button class="btn btn-primary" onclick="generateCompletion()">
+                        <i class="fas fa-magic"></i> Generate Completion
+                    </button>
+                    <div class="completion-result" id="completion-result"></div>
+                </div>
+            </section>
+
+            <!-- Image Generation -->
+            <section class="image-section">
+                <h2><i class="fas fa-image"></i> Image Generation</h2>
+                <div class="image-card">
+                    <div class="input-group">
+                        <label for="image-prompt">Prompt:</label>
+                        <textarea id="image-prompt" class="form-textarea" rows="3" 
+                                  placeholder="Describe the image you want to generate..."></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label for="image-size">Size:</label>
+                        <select id="image-size" class="form-select">
+                            <option value="1024x1024">1024x1024</option>
+                            <option value="1792x1024">1792x1024</option>
+                            <option value="1024x1792">1024x1792</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="image-quality">Quality:</label>
+                        <select id="image-quality" class="form-select">
+                            <option value="standard">Standard</option>
+                            <option value="hd">HD</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="generateImage()">
+                        <i class="fas fa-palette"></i> Generate Image
+                    </button>
+                    <div class="image-result" id="image-result"></div>
+                </div>
+            </section>
+
+            <!-- Embeddings -->
+            <section class="embeddings-section">
+                <h2><i class="fas fa-project-diagram"></i> Text Embeddings</h2>
+                <div class="embeddings-card">
+                    <div class="input-group">
+                        <label for="embeddings-model">Model:</label>
+                        <select id="embeddings-model" class="form-select">
+                            <option value="text-embedding-ada-002">text-embedding-ada-002</option>
+                            <option value="text-embedding-3-small">text-embedding-3-small</option>
+                            <option value="text-embedding-3-large">text-embedding-3-large</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="embeddings-text">Text:</label>
+                        <textarea id="embeddings-text" class="form-textarea" rows="4" 
+                                  placeholder="Enter text to create embeddings..."></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="createEmbeddings()">
+                        <i class="fas fa-vector-square"></i> Create Embeddings
+                    </button>
+                    <div class="embeddings-result" id="embeddings-result"></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2025 OpenAI API Client - Built with ❤️</p>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Processing...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
