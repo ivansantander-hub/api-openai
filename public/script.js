@@ -1,20 +1,28 @@
 // API Configuration
-const API_BASE_URL = process.env.API_BASE_URL;
+// Automatically detect the API base URL based on current location
+const API_BASE_URL = window.location.origin;
 
-// DOM Elements
-const statusText = document.getElementById('status-text');
-const statusDot = document.getElementById('status-dot');
-const loadingOverlay = document.getElementById('loading-overlay');
+// DOM Elements (these will be initialized after DOM loads)
+let statusText, statusDot, loadingOverlay;
 
-// Temperature sliders
-const chatTempSlider = document.getElementById('chat-temperature');
-const chatTempValue = document.getElementById('chat-temp-value');
-const completionTempSlider = document.getElementById('completion-temperature');
-const completionTempValue = document.getElementById('completion-temp-value');
+// Temperature sliders (will be initialized after DOM loads)
+let chatTempSlider, chatTempValue, completionTempSlider, completionTempValue;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 OpenAI API Client initialized');
+    console.log('🌐 API Base URL:', API_BASE_URL);
+    
+    // Initialize DOM elements
+    statusText = document.getElementById('status-text');
+    statusDot = document.getElementById('status-dot');
+    loadingOverlay = document.getElementById('loading-overlay');
+    
+    // Initialize temperature sliders
+    chatTempSlider = document.getElementById('chat-temperature');
+    chatTempValue = document.getElementById('chat-temp-value');
+    completionTempSlider = document.getElementById('completion-temperature');
+    completionTempValue = document.getElementById('completion-temp-value');
     
     // Set up temperature sliders
     if (chatTempSlider && chatTempValue) {
